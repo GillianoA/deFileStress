@@ -3,6 +3,7 @@ import json
 import shutil
 from subprocess import PIPE, run
 import sys
+import time
 
 SCRIPT_DIR_IGNORE = ["\\deFileStress", "Downloads"]
 SCRIPT_FILE_EXTENSION = ".pdf"
@@ -37,13 +38,17 @@ def cutAndPaste(source, dest):
     shutil.move(source, dest)
 
 def main():
-    sourcePath = getPath()
-    filePaths = findAllFilePaths(sourcePath)
-    destPaths = createDirs(filePaths)
-    
-    print(destPaths)
-    for src, dest in zip(filePaths, destPaths):
-        cutAndPaste(src, dest)
+    while True:
+        print("Processing...")
+        sourcePath = getPath()
+        filePaths = findAllFilePaths(sourcePath)
+        destPaths = createDirs(filePaths)
+        
+        for src, dest in zip(filePaths, destPaths):
+            cutAndPaste(src, dest)
+            
+        print("File processing complete...")
+        time.sleep(6)
 
 if __name__ == '__main__':
     main()
