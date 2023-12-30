@@ -8,11 +8,6 @@ import logging
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
-# TODO: ADD function to check if any changes were made to dir before processing
-# TODO: ADD check for Dir and if directory zip tree and move to desired location
-# TODO: ADD check for file extension that are not supported by the software
-# TODO: Refactor code to remove code duplication
-
 SCRIPT_DIR_IGNORE = ["\\deFileStress", "Downloads"]
 SCRIPT_DIRS_IGNORE = ["deFileStress", "installers","zips_folders","unknown"]
 SCRIPT_DOCUMENT_EXTENSIONS = [".pdf",".txt",".pptx",".docx",".xlsx",".xml"]
@@ -21,6 +16,7 @@ SCRIPT_MUSIC_EXTENSIONS = [".mp3",".wav",".flac",".opus"]
 SCRIPT_VIDEO_EXTENSIONS = [".mp4",".flv",".wmv",".mkv",".avchd",".mov",".webm",".avi"]
 SCRIPT_ARCHIVED_EXTENSIONS = [".zp",".zip",".rar","gz"]
 SCRIPT_INSTALLER_EXTENSIONS = [".exe",".msp",".msi",".apk"]
+SCRIPT_DOWNLOADING_EXTENSIONS = [".temp",".tmp",".crdownload"]
 
 class MyHandler(FileSystemEventHandler):
     def on_any_event(self, event):
@@ -28,6 +24,19 @@ class MyHandler(FileSystemEventHandler):
             return  # Ignore directory changes
         elif event.event_type in ['modified', 'created']:
             main()
+
+# Checks if a file is currently downloading and waits for completion
+def isDLing(source):
+    dlWait = True
+    while dlWait:
+        time.sleep(1)
+        dlWait = False
+        for root, dirs, files in os.walk(source):
+            for file in files:
+                for extension in SCRIPT_DOWNLOADING_EXTENSIONS:
+                    if file.endswith(extension):
+                        dlWait =  True
+            break
 
 # Finds all folders in the downloads dir
 def findAllDirPaths(source):
@@ -99,7 +108,7 @@ def cutAndPaste(source, dest):
 def main():
     print("Processing...")
     dlPath = os.getcwd()
-    print(dlPath)
+    isDLing(dlPath)
     
     # Looks for folders that arent the preprocessed ones
     dirPaths = findAllDirPaths(dlPath)
@@ -187,7 +196,7 @@ if __name__ == '__main__':
     
     eventHandler = MyHandler()
     observer = Observer()
-    observer.schedule(eventHandler, path=watchPath, recursive=True)
+    observer.schedule(eventHandler, path=watchPath, recursive=False)
     
     observer.start()
     print("Running...")
