@@ -4,7 +4,9 @@ import shutil
 from subprocess import PIPE, run
 import sys
 import time
-import zipfile
+import logging
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
 # TODO: ADD function to check if any changes were made to dir before processing
 # TODO: ADD check for Dir and if directory zip tree and move to desired location
@@ -20,12 +22,12 @@ SCRIPT_VIDEO_EXTENSIONS = [".mp4",".flv",".wmv",".mkv",".avchd",".mov",".webm","
 SCRIPT_ARCHIVED_EXTENSIONS = [".zp",".zip",".rar","gz"]
 SCRIPT_INSTALLER_EXTENSIONS = [".exe",".msp",".msi",".apk"]
 
-# Function to get download path
-def getDownloadPath():
-    cwd = os.getcwd()
-    dlPath = cwd.replace(SCRIPT_DIR_IGNORE[0], "")
-    
-    return dlPath
+class MyHandler(FileSystemEventHandler):
+    def on_any_event(self, event):
+        if event.is_directory:
+            return  # Ignore directory changes
+        elif event.event_type in ['modified', 'created']:
+            main()
 
 # Finds all folders in the downloads dir
 def findAllDirPaths(source):
@@ -95,90 +97,103 @@ def cutAndPaste(source, dest):
     shutil.move(source, dest)
 
 def main():
-    while True:
-        print("Processing...")
+    print("Processing...")
+    dlPath = os.getcwd()
+    print(dlPath)
+    
+    # Looks for folders that arent the preprocessed ones
+    dirPaths = findAllDirPaths(dlPath)
+    zipPaths = findAllFilePaths(dlPath, SCRIPT_ARCHIVED_EXTENSIONS)
+    exePaths = findAllFilePaths(dlPath, SCRIPT_INSTALLER_EXTENSIONS)
+    
+    # Gets names of files/folders to be transferred to Dir
+    dirNames = getDirNames(dlPath, dirPaths)
+    zipNames = getDirNames(dlPath, zipPaths)
+    exeNames = getDirNames(dlPath, exePaths)
+    
+    # Creates the directory fpr transfers
+    zipTargetPath = getTargetDir(dlPath, "zips_folders")
+    createDir(zipTargetPath)
+    
+    exeTargetPath = getTargetDir(dlPath, "installers")
+    createDir(exeTargetPath)
+    
+    # Moves the folders for the new directory
+    for src, dest in zip(dirPaths, dirNames):
+        dirDest = os.path.join(zipTargetPath, dest)
+        copyAndOverwrite(src, dirDest)
+    
+    # Moves the zip files to the target directory
+    for src, dest in zip(zipPaths, zipNames):
+        dirDest = os.path.join(zipTargetPath, dest)
+        cutAndPaste(src, dirDest)
+    
+    # transfers exe to desired directory
+    for src, dest in zip(exePaths, exeNames):
+        dirDest = os.path.join(exeTargetPath, dest)
+        cutAndPaste(src, dirDest)
+    
+    # Gets the file paths for all file types
+    docPaths = findAllFilePaths(dlPath, SCRIPT_DOCUMENT_EXTENSIONS)
+    photoPaths = findAllFilePaths(dlPath, SCRIPT_PHOTO_EXTENSIONS)
+    musicPaths = findAllFilePaths(dlPath, SCRIPT_MUSIC_EXTENSIONS)
+    videoPaths = findAllFilePaths(dlPath, SCRIPT_VIDEO_EXTENSIONS)
+    
+    # Gets the path to be transferred to
+    docDestPaths = findDests(docPaths, "Documents")
+    photoDestPaths = findDests(photoPaths, "OneDrive\\Pictures")
+    musicDestPaths = findDests(musicPaths, "Music")
+    videoDestPaths = findDests(videoPaths, "Videos")
+    
+    # Performs the transfer action for each transfer type
+    for src, dest in zip(docPaths, docDestPaths):
+        cutAndPaste(src, dest)
+    
+    for src, dest in zip(musicPaths, musicDestPaths):
+        cutAndPaste(src, dest)
+    
+    for src, dest in zip(photoPaths, photoDestPaths):
+        cutAndPaste(src, dest)
         
-        dlPath = getDownloadPath()
-        
-        # Looks for folders that arent the preprocessed ones
-        dirPaths = findAllDirPaths(dlPath)
-        zipPaths = findAllFilePaths(dlPath, SCRIPT_ARCHIVED_EXTENSIONS)
-        exePaths = findAllFilePaths(dlPath, SCRIPT_INSTALLER_EXTENSIONS)
-        
-        # Gets names of files/folders to be transferred to Dir
-        dirNames = getDirNames(dlPath, dirPaths)
-        zipNames = getDirNames(dlPath, zipPaths)
-        exeNames = getDirNames(dlPath, exePaths)
-        
-        # Creates the directory fpr transfers
-        zipTargetPath = getTargetDir(dlPath, "zips_folders")
-        createDir(zipTargetPath)
-        
-        exeTargetPath = getTargetDir(dlPath, "installers")
-        createDir(exeTargetPath)
-        
-        # Moves the folders for the new directory
-        for src, dest in zip(dirPaths, dirNames):
-            dirDest = os.path.join(zipTargetPath, dest)
-            copyAndOverwrite(src, dirDest)
-        
-        # Moves the zip files to the target directory
-        for src, dest in zip(zipPaths, zipNames):
-            dirDest = os.path.join(zipTargetPath, dest)
-            cutAndPaste(src, dirDest)
-        
-        # transfers exe to desired directory
-        for src, dest in zip(exePaths, exeNames):
-            dirDest = os.path.join(exeTargetPath, dest)
-            cutAndPaste(src, dirDest)
-        
-        # Gets the file paths for all file types
-        docPaths = findAllFilePaths(dlPath, SCRIPT_DOCUMENT_EXTENSIONS)
-        photoPaths = findAllFilePaths(dlPath, SCRIPT_PHOTO_EXTENSIONS)
-        musicPaths = findAllFilePaths(dlPath, SCRIPT_MUSIC_EXTENSIONS)
-        videoPaths = findAllFilePaths(dlPath, SCRIPT_VIDEO_EXTENSIONS)
-        
-        # Gets the path to be transferred to
-        docDestPaths = findDests(docPaths, "Documents")
-        photoDestPaths = findDests(photoPaths, "OneDrive\\Pictures")
-        musicDestPaths = findDests(musicPaths, "Music")
-        videoDestPaths = findDests(videoPaths, "Videos")
-        
-        # Performs the transfer action for each transfer type
-        for src, dest in zip(docPaths, docDestPaths):
-            cutAndPaste(src, dest)
-        
-        for src, dest in zip(musicPaths, musicDestPaths):
-            cutAndPaste(src, dest)
-        
-        for src, dest in zip(photoPaths, photoDestPaths):
-            cutAndPaste(src, dest)
-            
-        for src, dest in zip(videoPaths, videoDestPaths):
-            cutAndPaste(src, dest)
-        
-        # Looks for remaining file paths
-        remainingPaths = []
-        for root, dirs, files in os.walk(dlPath):
-            for file in files:
-                path = os.path.join(dlPath, file)
-                remainingPaths.append(path)
-            break
-        
-        # Gets remaining file names
-        remainingNames = getDirNames(dlPath, remainingPaths)
-        
-        # Create transfer Directory
-        remainingTargetPath = getTargetDir(dlPath, "unknown")
-        createDir(remainingTargetPath)
-        
-        # Moves remaining files to unknown dir
-        for src, dest in zip(remainingPaths, remainingNames):
-            dirDest = os.path.join(remainingTargetPath, dest)
-            cutAndPaste(src, dirDest)
-        
-        print("File processing complete...")
-        time.sleep(6)
+    for src, dest in zip(videoPaths, videoDestPaths):
+        cutAndPaste(src, dest)
+    
+    # Looks for remaining file paths
+    remainingPaths = []
+    for root, dirs, files in os.walk(dlPath):
+        for file in files:
+            path = os.path.join(dlPath, file)
+            remainingPaths.append(path)
+        break
+    
+    # Gets remaining file names
+    remainingNames = getDirNames(dlPath, remainingPaths)
+    
+    # Create transfer Directory
+    remainingTargetPath = getTargetDir(dlPath, "unknown")
+    createDir(remainingTargetPath)
+    
+    # Moves remaining files to unknown dir
+    for src, dest in zip(remainingPaths, remainingNames):
+        dirDest = os.path.join(remainingTargetPath, dest)
+        cutAndPaste(src, dirDest)
+    
+    print("File processing complete...")
+    
 
 if __name__ == '__main__':
-    main()
+    os.chdir('..')
+    watchPath = os.getcwd()
+    
+    eventHandler = MyHandler()
+    observer = Observer()
+    observer.schedule(eventHandler, path=watchPath, recursive=True)
+    
+    observer.start()
+    print("Running...")
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        observer.stop()
+    observer.join()
