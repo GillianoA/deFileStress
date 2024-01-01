@@ -90,7 +90,7 @@ def findAllFilePaths(source, extensions):
     
     return filePaths
 
-# finds to destnations for the files to be transferred to 
+# finds to destinations for the files to be transferred to 
 def findDests(source, location):
     newPaths = []
     for paths in source:
